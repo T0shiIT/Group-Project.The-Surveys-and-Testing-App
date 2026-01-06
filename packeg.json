@@ -1,0 +1,9 @@
+{
+   "name": "web-client",
+   "main": "server.js",
+   "dependencies": {
+    "express": "хз какая версия",
+    "redis": " "
+
+   }
+}
