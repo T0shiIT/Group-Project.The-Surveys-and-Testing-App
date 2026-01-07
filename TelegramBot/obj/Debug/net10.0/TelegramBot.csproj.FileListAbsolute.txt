@@ -17,3 +17,8 @@ D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\obj\Debug\n
 D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\obj\Debug\net10.0\TelegramBot.pdb
 D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\obj\Debug\net10.0\TelegramBot.genruntimeconfig.cache
 D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\obj\Debug\net10.0\ref\TelegramBot.dll
+D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\bin\Debug\net10.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\bin\Debug\net10.0\Microsoft.Extensions.Logging.Abstractions.dll
+D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\bin\Debug\net10.0\Pipelines.Sockets.Unofficial.dll
+D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\bin\Debug\net10.0\StackExchange.Redis.dll
+D:\Repositorys\Group-Project.The-Surveys-and-Testing-App\TelegramBot\bin\Debug\net10.0\System.IO.Hashing.dll
