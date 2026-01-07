@@ -3,7 +3,7 @@
    "main": "server.js",
    "dependencies": {
     "express": "хз какая версия",
-    "redis": " "
-
+    "redis": " ",
+   "cookie-parser": ""
    }
 }
