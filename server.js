@@ -4,6 +4,8 @@ const port = 3000;
 const pathc = require("path");
 const redis = require('redis');
 const cookieParser = require('cooki-parser');
+const crypto = require("crypto");
+const axios = require('axios');
 
 //подключение к redis
 const redisClient = redis.createClient();
@@ -52,6 +54,52 @@ app.use(async(req,res,next)=>{
         return handleUnknowUser(req,res);
     }
 });
+
+
+async function handleUnknowUser(req,res) {
+    if (req.path === '/'){
+        return res.sendFile(path.join(__dirname,'sait','index.html'));
+    }
+
+
+    if (req.path === '/login' && req.query.type){
+        const type = req.query.type
+
+        const newSessionToken = crypto.randomUUID();
+        const newLoginToken = crypto.randomUUID();
+
+        const dataToSave = JSON.stringify({
+            status: 'Anonymous',
+            loginToken: newLoginToken
+        });
+
+        await redisClient.set(newLoginToken,dataToSave);
+        try {
+            const response = await axios.post('???') {
+                type: type,
+                login_token: newLoginToken
+            };
+
+            res.cookie('session_id', newSessionToken, {httpOnly: true});
+
+            if (response.data.redirectURL){
+                return res.redirect(response.data.redirectURL);
+            } else {
+                return res.send('Ошибка: модуль авторизации не прислал ссылку');
+            }
+
+        } catch(e) {
+            console.error('ошибам связи с модулем авторизации:', e.massage);
+            return res.status(500).send('ошибка авторизации');
+        }
+        return res.redirect('/');
+    }
+}
+
+
+
+
+
 
 app.listen(port,()=>{
     console.log("web-client запущен")
