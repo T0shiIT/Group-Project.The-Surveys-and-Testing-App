@@ -64,8 +64,6 @@ while (true)
 
             try
             {
-                //---[УДАЛЕНА ЗАЩИТА ОТ СПАМА]---
-                // Блок проверки лимита запросов полностью удален
 
                 string? userState = await db.StringGetAsync($"user:{userId}:state");
                 string? userName = await db.StringGetAsync($"user:{userId}:name");
@@ -168,9 +166,6 @@ while (true)
                         {
                             await db.KeyDeleteAsync($"user:{userId}:name");
                             await db.KeyDeleteAsync($"user:{userId}:state");
-                            
-                            //---[УДАЛЕНО УДАЛЕНИЕ last_request]---
-                            // Ключ last_request больше не используется
 
                             IReplyMarkup resetMarkup = chatType == ChatType.Private 
                                 ? GetStartKeyboard() 
