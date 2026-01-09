@@ -2,8 +2,10 @@
    "name": "web-client",
    "main": "server.js",
    "dependencies": {
-    "express": "хз какая версия",
+    "express": "11.6.2",
     "redis": " ",
-   "cookie-parser": ""
+    "cookie-parser": "",
+    "axios": "",
+    "uuid": ""
    }
 }
