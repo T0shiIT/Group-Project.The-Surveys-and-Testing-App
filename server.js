@@ -96,8 +96,63 @@ async function handleUnknowUser(req,res) {
     }
 }
 
+async function handleAnonymousUser(req,res,sessionToken,userData) {
+    if (req.path === '/login' && req.query.type) {
+        const newLoginToken =crypto.randomUUID();
+        userData.loginToken = newLoginToken;
 
+        await redisClient.set(sessionToken, JSON.stringify(userData));
+        return res.send("перезапуск входа");
 
+        try {
+            const response = await axios.post('???') {
+                type: type,
+                login_token: newLoginToken
+            };
+
+            res.cookie('session_id', newSessionToken, {httpOnly: true});
+
+            if (response.data.redirectURL){
+                return res.redirect(response.data.redirectURL);
+            } else {
+                return res.send('Ошибка: модуль авторизации не прислал ссылку');
+            }
+
+        } catch(e) {
+            console.error('ошибам связи с модулем авторизации:', e.massage);
+            return res.status(500).send('ошибка авторизации');
+        }
+    }
+
+    try {
+        const authResponse = await axios.post("???") {
+            login_token: userData.loginToken
+        };
+
+        if (authResponse.data.status === 'error' || authResponse.data.status === 'denied') {
+            await redisClient.del(sessionToken);
+            return res.redirect('/');
+        }
+
+        if (authResponse.data.status === 'success') {
+            const { accessToken, refreshToken } = authResponse.data;
+            const newUserData = {
+                status: 'Authorized',
+                accessToken: accessToken,
+                refreshToken: refreshToken
+            };
+
+            await redisClient.set(sessionToken, JSON.stringify(newUserData));
+            return res.redirect(req.originalURL);
+        }
+
+        return res.send("<h1>ожидайте подтверждения входа</h1><script>setTimeout(() => location.reload(), 2000);</script>");
+
+    } catch (e) {
+        console.log("модуль авторизации вернул ошибку");
+        return res.redirect('/');
+    }
+}
 
 
 
