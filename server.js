@@ -92,8 +92,9 @@ async function handleUnknowUser(req,res) {
             console.error('ошибам связи с модулем авторизации:', e.massage);
             return res.status(500).send('ошибка авторизации');
         }
-        return res.redirect('/');
+        
     }
+    return res.redirect('/');
 }
 
 async function handleAnonymousUser(req,res,sessionToken,userData) {
@@ -103,7 +104,7 @@ async function handleAnonymousUser(req,res,sessionToken,userData) {
 
         await redisClient.set(sessionToken, JSON.stringify(userData));
         return res.send("перезапуск входа");
-
+    }    
         try {
             const response = await axios.post('???') {
                 type: type,
@@ -154,7 +155,38 @@ async function handleAnonymousUser(req,res,sessionToken,userData) {
     }
 }
 
+async function handleAuthorizedUser(req,res, sessionToken, userData) {
+    if (req.path === '/') {
+        return res.sendFile(path.join('создай файл'));
+    }
 
+
+    if (req.path.startsWith('/login')) {
+        return res.redirect('/');
+    }
+
+
+
+    if (req.path === '/logout') {
+        const logoutall = req.query.all === 'true';
+        await redisClient.del(sessionToken);
+        res.clearCookie('session_id');
+
+        if (logoutall) {
+            try {
+                await axios.post('???');
+            } catch (e) {console.error('Ошибка на сервере авторизации'); }
+        }
+
+        return res.redirect('/');
+    }
+    try {
+        const mainModul;
+        const response = await axios({
+            "???"
+        })
+    } catch (erroe)
+}
 
 app.listen(port,()=>{
     console.log("web-client запущен")
