@@ -122,7 +122,7 @@ int main(){
             res.set_content("<h1>Auth Success! Close this.</h1>", "text/html");
         }
     });
-
+    // проверка состояеия
     srv.Get("/check_state", [](const httplib::Request& req, httplib::Response& res){
         auto state = req.get_param_value("state");
         if (stateStorage.count(state) && stateStorage[state] != "pending"){
@@ -132,10 +132,55 @@ int main(){
             res.status = 202;
         }
     });
-
+    // проверка работоспособности
     srv.Get("/health", [](const httplib::Request&, httplib::Response& res){
         res.set_content("OK", "text/plain");
     });
     
+    // обновление refresh-а
+    srv.Post("/refresh", [](const httplib::Request& req, httplib::Response& res){
+        auto auth_header = req.get_header_value("Authorization");
+
+        if (auth_header.empty()){
+            res.status = 401;
+            return;
+        }
+
+        string old_refresh = auth_header.substr(7);
+
+        if (TokenManager::verifyToken(old_refresh)){
+            string email = TokenManager::getEmailFromToken(old_refresh);
+            User* user = db.findUserByEmail(email);
+
+            if (user && user->refreshToken == old_refresh){
+                string new_access = TokenManager::createAccessToken(email, user->roles);
+                string new_refresh = TokenManager::createRefreshToken(email);
+
+                db.updateRefreshToken(email, new_refresh);
+
+                json resp;
+                resp["access_token"] = new_access;
+                resp["refresh_token"] = new_refresh;
+                res.set_content(resp.dump(), "application/json");
+                return;
+            }
+        }
+
+        res.status = 403;
+        res.set_content("Invalid Refresh Token", "text/plain");
+    });
+
+    srv.Post("/logout", [](const httplib::Request& req, httplib::Response& res){
+        auto auth_header = req.get_header_value("Authorization");
+        if (!auth_header.empty()){
+            string token = auth_header.substr(7);
+            if (TokenManager::verifyToken(token)){
+                string email = TokenManager::getEmailFromToken(token);
+
+                db.updateRefreshToken(email, "")
+            }
+        }
+    });
+
     srv.listen("0.0.0.0", 8081);
 }
