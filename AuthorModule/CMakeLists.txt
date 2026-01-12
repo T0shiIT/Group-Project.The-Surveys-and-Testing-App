@@ -3,6 +3,8 @@ project(AuthService)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Для подписи JWT
+find_package(OpenSSL REQUIRED)
 
 # nlohmann/json
 include(FetchContent)
@@ -18,3 +20,14 @@ FetchContent_Declare(jwt-cpp URL https://github.com/Thalhammer/jwt-cpp/archive/r
 FetchContent_MakeAvailable(jwt-cpp)
 
 add_executable(auth_service src/main.cpp)
+
+target_link_libraries(auth_service
+    PRIVATE
+    nlohmann_json::nlohmann_json
+    httplib::httplib
+    jwt-cpp::jwt-cpp
+    OpenSSL::SSL
+    OpenSSL::Crypto
+)
+
+target_include_directories(auth_service PRIVATE src)
