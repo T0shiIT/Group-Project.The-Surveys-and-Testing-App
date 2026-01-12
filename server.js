@@ -7,6 +7,10 @@ const cookieParser = require('cooki-parser');
 const crypto = require("crypto");
 const axios = require('axios');
 
+//порты для авторизации!!!!!!!!!!!!!!!
+const Main_modul_URL = 'http://localhost:8080'
+const Auth_modul_URL = 'http://localhost:8081';
+
 //подключение к redis
 const redisClient = redis.createClient();
 (async () => {
@@ -21,7 +25,7 @@ redisclient.on("error", (err) => {
 });
 
 
-app.use(cookieParser(''));
+app.use(cookieParser());
 
 
 app.use(async(req,res,next)=>{
@@ -32,11 +36,7 @@ app.use(async(req,res,next)=>{
     }
 
 
-    const userData = await 
-    redisClient.get(sessionToken);
-
-
-
+    const userData = await redisClient.get(sessionToken);
     if (!userData){
         console.log('неизвестный пользователь');          
         return handleUnknowUser(req,res);
@@ -44,12 +44,13 @@ app.use(async(req,res,next)=>{
 
 
     const userData2 = JSON.parse(userData);
-    console.log('статус пользователя', userData);
+    console.log('статус пользователя', userData2.status);
 
-    if (userData === "Anonymous"){
-        return handleAnonymousUser(req,res,sessionToken,userData);
-    }else if (userData === "Authorized"){
-        return handleAuthorizedUser(req,res,sessionToken,userData);
+
+    if (userData2.status === "Anonymous"){
+        return handleAnonymousUser(req,res,sessionToken,userData2);
+    }else if (userData2.status === "Authorized"){
+        return handleAuthorizedUser(req,res,sessionToken,userData2);
     }else{
         return handleUnknowUser(req,res);
     }
@@ -73,12 +74,12 @@ async function handleUnknowUser(req,res) {
             loginToken: newLoginToken
         });
 
-        await redisClient.set(newLoginToken,dataToSave);
+        await redisClient.set(newSessionToken,dataToSave);
         try {
-            const response = await axios.post('???') {
+            const response = await axios.post(`${Auth_modul_URL}/auth-request`, {
                 type: type,
                 login_token: newLoginToken
-            };
+            });
 
             res.cookie('session_id', newSessionToken, {httpOnly: true});
 
@@ -89,7 +90,7 @@ async function handleUnknowUser(req,res) {
             }
 
         } catch(e) {
-            console.error('ошибам связи с модулем авторизации:', e.massage);
+            console.error('ошибка связи с модулем авторизации:', e.massage);
             return res.status(500).send('ошибка авторизации');
         }
         
@@ -97,19 +98,18 @@ async function handleUnknowUser(req,res) {
     return res.redirect('/');
 }
 
-async function handleAnonymousUser(req,res,sessionToken,userData) {
+async function handleAnonymousUser(req,res,sessionToken,userData2) {
     if (req.path === '/login' && req.query.type) {
         const newLoginToken =crypto.randomUUID();
-        userData.loginToken = newLoginToken;
+        userData2.loginToken = newLoginToken;
 
-        await redisClient.set(sessionToken, JSON.stringify(userData));
-        return res.send("перезапуск входа");
-    }    
+        await redisClient.set(sessionToken, JSON.stringify(userData2));
+        
         try {
-            const response = await axios.post('???') {
+            const response = await axios.post(`${Auth_modul_URL}/auth-request`, {
                 type: type,
                 login_token: newLoginToken
-            };
+            });
 
             res.cookie('session_id', newSessionToken, {httpOnly: true});
 
@@ -123,12 +123,13 @@ async function handleAnonymousUser(req,res,sessionToken,userData) {
             console.error('ошибам связи с модулем авторизации:', e.massage);
             return res.status(500).send('ошибка авторизации');
         }
+        return res.send("перезапуск входа");
     }
 
     try {
-        const authResponse = await axios.post("???") {
-            login_token: userData.loginToken
-        };
+        const authResponse = await axios.post(`${Auth_modul_URL}/check-token`, {
+            login_token: userData2.loginToken
+        });
 
         if (authResponse.data.status === 'error' || authResponse.data.status === 'denied') {
             await redisClient.del(sessionToken);
@@ -155,9 +156,9 @@ async function handleAnonymousUser(req,res,sessionToken,userData) {
     }
 }
 
-async function handleAuthorizedUser(req,res, sessionToken, userData) {
+async function handleAuthorizedUser(req,res, sessionToken, userData2) {
     if (req.path === '/') {
-        return res.sendFile(path.join('создай файл'));
+        return res.sendFile(path.join(__dirname, 'sait', 'index2.html'));
     }
 
 
@@ -174,18 +175,67 @@ async function handleAuthorizedUser(req,res, sessionToken, userData) {
 
         if (logoutall) {
             try {
-                await axios.post('???');
+                await axios.post(`${Auth_modul_URL}/logout`, { refreshToken: userData2.refreshToken});
             } catch (e) {console.error('Ошибка на сервере авторизации'); }
         }
 
         return res.redirect('/');
     }
     try {
-        const mainModul;
+        const mainModulURL = '${Main_module_URL}';
         const response = await axios({
-            "???"
-        })
-    } catch (erroe)
+            method: req.method,
+            url: mainModulURL,
+            headers: { 
+                'Authorization' : 'Bearer ${userData2.accessToken}'
+            },
+            data: req.body
+        });
+
+        return res.send(response.data);
+    } catch (error) {
+        if (!error.response) {
+            return res.status(500).send("ошибка главного модуля");
+        }
+
+        const status = error.response.status;
+        if (status === 403) {
+            return res.status(403).send("у вас нет прав");
+        }
+
+        if (status === 401) {
+            try{
+                const refreshResponse = await axios.post(`${Auth_modul_URL}/refresh`, {refreshToken: userData2.refreshToken});
+                const {accessToken, refreshToken} = refreshResponse.data;
+
+                await redisClient.set(
+                    sessionToken,
+                    JSON.stringify({
+                        userData2,
+                        accessToken,
+                        refreshToken
+                    })
+                );
+                const retryResponse = await axios({
+                    method: req.method,
+                    url: mainModulURL,
+                    headers: { 
+                        'Authorization' : 'Bearer ${accessToken}'
+                    },
+                    data: req.body
+                });
+                return res.send(retryResponse.data);
+            }catch (error) {
+                if (error.response && error.response.status === 401){
+                    await redisClient.del(sessionToken);
+                    res.clearCookie('session_id');
+                    return res.redirect('/');
+                }
+                return res.ststus(500).send("ошибка обновления токена");
+            }
+        }
+        return res.status(status).send(error.response.data);
+    }
 }
 
 app.listen(port,()=>{
