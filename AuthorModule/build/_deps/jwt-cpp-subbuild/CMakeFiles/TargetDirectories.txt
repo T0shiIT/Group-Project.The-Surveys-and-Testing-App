@@ -1,0 +1,3 @@
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/CMakeFiles/jwt-cpp-populate.dir
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/CMakeFiles/edit_cache.dir
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/CMakeFiles/rebuild_cache.dir

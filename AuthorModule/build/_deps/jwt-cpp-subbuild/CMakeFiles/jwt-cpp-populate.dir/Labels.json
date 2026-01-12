@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/CMakeFiles/jwt-cpp-populate"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/CMakeFiles/jwt-cpp-populate.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/CMakeFiles/jwt-cpp-populate-complete.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-build.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-configure.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-download.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-install.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-mkdir.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-patch.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-test.rule"
+		},
+		{
+			"file" : "/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/jwt-cpp-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"jwt-cpp-populate"
+		],
+		"name" : "jwt-cpp-populate"
+	}
+}

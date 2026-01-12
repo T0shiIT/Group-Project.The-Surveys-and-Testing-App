@@ -1,0 +1,14 @@
+# Target labels
+ httplib-populate
+# Source files and their labels
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/CMakeFiles/httplib-populate
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/CMakeFiles/httplib-populate.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/CMakeFiles/httplib-populate-complete.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-build.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-configure.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-download.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-install.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-mkdir.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-patch.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-test.rule
+/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/httplib-subbuild/httplib-populate-prefix/src/httplib-populate-stamp/httplib-populate-update.rule

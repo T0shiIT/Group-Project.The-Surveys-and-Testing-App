@@ -4,7 +4,7 @@
 #include <map>
 #include "AuthLogic.hpp"
 
-using json = nlohmann::json
+using json = nlohmann::json;
 using namespace std;
 
 const string GH_ID = "YOUR_GITHUB_ID";
@@ -13,7 +13,7 @@ const string GH_SECRET = "YOUR_GITHUB_SECRET";
 const string YAN_ID = "YOUR_YANDEX_ID";
 const string YAN_SECRET = "YOUR_YANDEX_SECRET";
 
-Database db;
+Database db("users.json");
 map<string, string> stateStorage;
 
 int main(){
@@ -112,7 +112,7 @@ int main(){
             }
 
             string access = TokenManager::createAccessToken(email, user->roles);
-            string refresh = TokenManager::createRefreshtoken(email);
+            string refresh = TokenManager::createRefreshToken(email);
             db.updateRefreshToken(email, refresh);
 
             json tokens;
@@ -177,7 +177,7 @@ int main(){
             if (TokenManager::verifyToken(token)){
                 string email = TokenManager::getEmailFromToken(token);
 
-                db.updateRefreshToken(email, "")
+                db.updateRefreshToken(email, "");
             }
         }
     });

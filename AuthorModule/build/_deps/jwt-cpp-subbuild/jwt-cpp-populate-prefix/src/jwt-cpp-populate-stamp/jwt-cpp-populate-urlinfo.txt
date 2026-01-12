@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=/usr/bin/cmake;-P;/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/download-jwt-cpp-populate.cmake;COMMAND;/usr/bin/cmake;-P;/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/verify-jwt-cpp-populate.cmake;COMMAND;/usr/bin/cmake;-P;/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-subbuild/jwt-cpp-populate-prefix/src/jwt-cpp-populate-stamp/extract-jwt-cpp-populate.cmake
+source_dir=/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps/jwt-cpp-src
+work_dir=/workspaces/Group-Project.The-Surveys-and-Testing-App/AuthorModule/build/_deps
+url(s)=https://github.com/Thalhammer/jwt-cpp/archive/refs/tags/v0.7.0.tar.gz
+hash=
+no_extract=
+
