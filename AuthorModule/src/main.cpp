@@ -7,11 +7,11 @@
 using json = nlohmann::json;
 using namespace std;
 
-const string GH_ID = "YOUR_GITHUB_ID";
-const string GH_SECRET = "YOUR_GITHUB_SECRET";
+const string GH_ID = "Ov23liUYg9aV9w6uf2um";
+const string GH_SECRET = "9020d84a5668ebc357d69372f60990f3b6e8109a";
 
-const string YAN_ID = "YOUR_YANDEX_ID";
-const string YAN_SECRET = "YOUR_YANDEX_SECRET";
+const string YAN_ID = "c0dd165823b24d1db7522b1e978481d0";
+const string YAN_SECRET = "efa9c75d574a4764ada0842a0a652442";
 
 Database db("users.json");
 map<string, string> stateStorage;
