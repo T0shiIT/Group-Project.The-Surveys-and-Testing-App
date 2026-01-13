@@ -10,8 +10,8 @@ using namespace std;
 const string GH_ID = "Ov23liUYg9aV9w6uf2um";
 const string GH_SECRET = "9020d84a5668ebc357d69372f60990f3b6e8109a";
 
-const string YAN_ID = "c0dd165823b24d1db7522b1e978481d0";
-const string YAN_SECRET = "efa9c75d574a4764ada0842a0a652442";
+const string YAN_ID = "31470232dd074cd3a009c0fb8b5190fd";
+const string YAN_SECRET = "b1d901362f9a436b9031f1cd2359e653";
 
 Database db("users.json");
 map<string, string> stateStorage;
