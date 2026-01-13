@@ -1,9 +1,9 @@
 const express = require('express');
 const app = express();
 const port = 3000;
-const pathc = require("path");
+const path = require("path");
 const redis = require('redis');
-const cookieParser = require('cooki-parser');
+const cookieParser = require('cookie-parser');
 const crypto = require("crypto");
 const axios = require('axios');
 
@@ -90,7 +90,7 @@ async function handleUnknowUser(req,res) {
             }
 
         } catch(e) {
-            console.error('ошибка связи с модулем авторизации:', e.massage);
+            console.error('ошибка связи с модулем авторизации:', e.message);
             return res.status(500).send('ошибка авторизации');
         }
         
@@ -182,12 +182,12 @@ async function handleAuthorizedUser(req,res, sessionToken, userData2) {
         return res.redirect('/');
     }
     try {
-        const mainModulURL = '${Main_module_URL}';
+        const mainModulURL = Main_module_URL;
         const response = await axios({
             method: req.method,
             url: mainModulURL,
             headers: { 
-                'Authorization' : 'Bearer ${userData2.accessToken}'
+                'Authorization': 'Bearer ${userData2.accessToken}'
             },
             data: req.body
         });
@@ -211,7 +211,7 @@ async function handleAuthorizedUser(req,res, sessionToken, userData2) {
                 await redisClient.set(
                     sessionToken,
                     JSON.stringify({
-                        userData2,
+                        status: 'Authorized',
                         accessToken,
                         refreshToken
                     })
@@ -220,7 +220,7 @@ async function handleAuthorizedUser(req,res, sessionToken, userData2) {
                     method: req.method,
                     url: mainModulURL,
                     headers: { 
-                        'Authorization' : 'Bearer ${accessToken}'
+                        'Authorization': 'Bearer ${accessToken}'
                     },
                     data: req.body
                 });
@@ -231,7 +231,7 @@ async function handleAuthorizedUser(req,res, sessionToken, userData2) {
                     res.clearCookie('session_id');
                     return res.redirect('/');
                 }
-                return res.ststus(500).send("ошибка обновления токена");
+                return res.status(500).send("ошибка обновления токена");
             }
         }
         return res.status(status).send(error.response.data);
