@@ -7,8 +7,8 @@
 using json = nlohmann::json;
 using namespace std;
 
-const string GH_ID = "Ov23liUYg9aV9w6uf2um";
-const string GH_SECRET = "9020d84a5668ebc357d69372f60990f3b6e8109a";
+const string GH_ID = "Ov23li3fu6lVlHErLMsL";
+const string GH_SECRET = "ae29b847b7ee7bfd1847c9f5397b68cebe2089ca";
 
 const string YAN_ID = "31470232dd074cd3a009c0fb8b5190fd";
 const string YAN_SECRET = "b1d901362f9a436b9031f1cd2359e653";
