@@ -2,10 +2,10 @@
    "name": "web-client",
    "main": "server.js",
    "dependencies": {
-    "express": "11.6.2",
-    "redis": " ",
-    "cookie-parser": "",
-    "axios": "",
-    "uuid": ""
+    "express": "^11.6.2",
+    "redis": "^4.6.7",
+    "cookie-parser": "^1.4.6",
+    "axios": "^1.4.0",
+    "uuid": "^9.0.0"
    }
 }
