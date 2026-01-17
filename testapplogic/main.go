@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
-
 	"testapplogic/config"
 	"testapplogic/db"
 	"testapplogic/handlers"
+
+	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -22,19 +22,22 @@ func main() {
 	}
 
 	// Загружаем конфигурацию
-	config, err := config.LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Подключаемся к базе данных
-	db, err := db.ConnectDB(config)
+	database, err := db.ConnectDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer database.Close()
 
-	// Создаем роутер для обработки HTTP-запросов
+	// Инициализируем JWT-секрет
+	handlers.InitAuth(cfg.JWTSecret)
+
+	// Создаём роутер
 	router := mux.NewRouter()
 
 	// Логирование всех входящих запросов
@@ -45,38 +48,38 @@ func main() {
 		})
 	})
 
-	// Определяем общие пути для API
+	// Общие маршруты API
 	api := router.PathPrefix("/api").Subrouter()
 
-	// Публичные маршруты (не требуют авторизации)
-	api.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
+	// Публичный маршрут для проверки работоспособности
+	api.HandleFunc("/health", (&handlers.DBHandler{DB: database}).HealthCheck).Methods("GET")
 
 	// Маршруты, требующие авторизации
-	auth := api.PathPrefix("/").Subrouter()
-	auth.Use(handlers.AuthMiddleware)
+	auth := api.PathPrefix("").Subrouter()
+	auth.Use(handlers.AuthMiddleware(database))
 
-	// Маршруты для работы с дисциплинами
-	auth.HandleFunc("/courses", handlers.GetCourses).Methods("GET")
-	auth.HandleFunc("/courses/{id}", handlers.GetCourse).Methods("GET")
-	auth.HandleFunc("/courses", handlers.CreateCourse).Methods("POST")
-	auth.HandleFunc("/courses/{id}/tests", handlers.GetCourseTests).Methods("GET")
+	// Курсы
+	auth.HandleFunc("/courses", (&handlers.DBHandler{DB: database}).GetCourses).Methods("GET")
+	auth.HandleFunc("/courses/{id}", (&handlers.DBHandler{DB: database}).GetCourse).Methods("GET")
+	auth.HandleFunc("/courses", (&handlers.DBHandler{DB: database}).CreateCourse).Methods("POST")
 
-	// Маршруты для работы с тестами
-	auth.HandleFunc("/tests/{id}", handlers.GetTest).Methods("GET")
-	auth.HandleFunc("/tests/{id}/activate", handlers.ActivateTest).Methods("POST")
-	auth.HandleFunc("/tests/{id}/deactivate", handlers.DeactivateTest).Methods("POST")
+	// Тесты
+	auth.HandleFunc("/courses/{id}/tests", (&handlers.DBHandler{DB: database}).GetCourseTests).Methods("GET")
+	auth.HandleFunc("/tests/{id}", (&handlers.DBHandler{DB: database}).GetTest).Methods("GET")
+	auth.HandleFunc("/tests/{id}/activate", (&handlers.DBHandler{DB: database}).ActivateTest).Methods("POST")
+	auth.HandleFunc("/tests/{id}/deactivate", (&handlers.DBHandler{DB: database}).DeactivateTest).Methods("POST")
 
-	// Маршруты для работы с вопросами
-	auth.HandleFunc("/questions", handlers.CreateQuestion).Methods("POST")
-	auth.HandleFunc("/questions/{id}", handlers.GetQuestion).Methods("GET")
-	auth.HandleFunc("/questions/{id}", handlers.UpdateQuestion).Methods("PUT")
-	auth.HandleFunc("/questions/{id}", handlers.DeleteQuestion).Methods("DELETE")
+	// Вопросы
+	auth.HandleFunc("/questions", (&handlers.DBHandler{DB: database}).CreateQuestion).Methods("POST")
+	auth.HandleFunc("/questions/{id}", (&handlers.DBHandler{DB: database}).GetQuestion).Methods("GET")
+	auth.HandleFunc("/questions/{id}", (&handlers.DBHandler{DB: database}).UpdateQuestion).Methods("PUT")
+	auth.HandleFunc("/questions/{id}", (&handlers.DBHandler{DB: database}).DeleteQuestion).Methods("DELETE")
 
-	// Маршруты для работы с попытками
-	auth.HandleFunc("/attempts", handlers.CreateAttempt).Methods("POST")
-	auth.HandleFunc("/attempts/{id}", handlers.GetAttempt).Methods("GET")
-	auth.HandleFunc("/attempts/{id}/answers", handlers.SubmitAnswer).Methods("POST")
-	auth.HandleFunc("/attempts/{id}/complete", handlers.CompleteAttempt).Methods("POST")
+	// Попытки
+	auth.HandleFunc("/tests/{id}/attempts", (&handlers.DBHandler{DB: database}).CreateAttempt).Methods("POST")
+	auth.HandleFunc("/attempts/{id}", (&handlers.DBHandler{DB: database}).GetAttempt).Methods("GET")
+	auth.HandleFunc("/attempts/{id}/answers", (&handlers.DBHandler{DB: database}).SubmitAnswer).Methods("POST")
+	auth.HandleFunc("/attempts/{id}/complete", (&handlers.DBHandler{DB: database}).CompleteAttempt).Methods("POST")
 
 	// Обработка 404 ошибки
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -84,18 +87,11 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"error": "Not found"})
 	})
 
-	// Запускаем сервер
+	// Запуск сервера
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-
 	log.Printf("Server started on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, router))
-}
-
-// HealthCheck - проверяет работоспособность сервера
-func HealthCheck(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
