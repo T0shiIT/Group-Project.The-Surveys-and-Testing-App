@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -18,30 +18,34 @@ type Config struct {
 
 // LoadConfig загружает конфигурацию из переменных окружения
 func LoadConfig() (*Config, error) {
-	// Пытаемся получить порт БД, если не указан - используем 5432
-	port, err := strconv.Atoi(os.Getenv("DB_PORT"))
-	if err != nil {
-		port = 5432
+	portStr := os.Getenv("DB_PORT")
+	port := 5432
+	if portStr != "" {
+		if p, err := strconv.Atoi(portStr); err == nil {
+			port = p
+		}
 	}
 
 	config := &Config{
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     port,
-		DBUser:     os.Getenv("DB_USER"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		DBName:     os.Getenv("DB_NAME"),
-		JWTSecret:  os.Getenv("JWT_SECRET"),
+		DBUser:     getEnv("DB_USER", ""),
+		DBPassword: getEnv("DB_PASSWORD", ""),
+		DBName:     getEnv("DB_NAME", ""),
+		JWTSecret:  getEnv("JWT_SECRET", ""),
 	}
 
-	// Проверяем обязательные переменные
 	if config.DBUser == "" {
-		return nil, log.New(os.Stdout, "DB_USER is required", 0)
+		return nil, fmt.Errorf("DB_USER is required")
 	}
 	if config.DBPassword == "" {
-		return nil, log.New(os.Stdout, "DB_PASSWORD is required", 0)
+		return nil, fmt.Errorf("DB_PASSWORD is required")
 	}
 	if config.DBName == "" {
-		return nil, log.New(os.Stdout, "DB_NAME is required", 0)
+		return nil, fmt.Errorf("DB_NAME is required")
+	}
+	if config.JWTSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required")
 	}
 
 	return config, nil
