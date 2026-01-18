@@ -37,7 +37,6 @@ func (h *DBHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
-
 	// Определяем, является ли пользователь студентом (нет разрешений на управление курсами)
 	isStudent := true
 	permissions, _ := GetPermissions(r)
@@ -47,10 +46,8 @@ func (h *DBHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
 	var rows *sql.Rows
 	var err error
-
 	if isStudent {
 		// Студенты видят ВСЕ курсы
 		rows, err = h.DB.Query(`
@@ -67,13 +64,11 @@ func (h *DBHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 			OR EXISTS(SELECT 1 FROM user_courses uc WHERE uc.user_id = $1 AND uc.course_id = c.id)
 		`, userID)
 	}
-
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
-
 	var courses []models.Course
 	for rows.Next() {
 		var c models.Course
@@ -84,7 +79,6 @@ func (h *DBHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 		}
 		courses = append(courses, c)
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(courses)
 }
@@ -175,6 +169,46 @@ func (h *DBHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(course)
+}
+
+// CreateTest создаёт новый тест в указанном курсе
+func (h *DBHandler) CreateTest(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		CourseID int    `json:"course_id"`
+		Name     string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if input.CourseID <= 0 || input.Name == "" {
+		http.Error(w, "course_id and name are required", http.StatusBadRequest)
+		return
+	}
+	if !CheckCourseAccess(h.DB, r, input.CourseID) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	now := time.Now()
+	var testID int
+	err := h.DB.QueryRow(`
+		INSERT INTO tests (course_id, name, active, created_at)
+		VALUES ($1, $2, false, $3) RETURNING id
+	`, input.CourseID, input.Name, now).Scan(&testID)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	test := models.Test{
+		ID:        testID,
+		CourseID:  input.CourseID,
+		Name:      input.Name,
+		Active:    false,
+		CreatedAt: now,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(test)
 }
 
 // GetCourseTests возвращает список тестов для дисциплины
