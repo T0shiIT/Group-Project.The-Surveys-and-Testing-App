@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"testapplogic/models"
 	"time"
 
@@ -37,12 +38,36 @@ func (h *DBHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := h.DB.Query(`
-		SELECT c.id, c.name, c.description, c.teacher_id, c.created_at
-		FROM courses c
-		WHERE c.teacher_id = $1
-		   OR EXISTS(SELECT 1 FROM user_courses uc WHERE uc.user_id = $1 AND uc.course_id = c.id)
-	`, userID)
+	// Определяем, является ли пользователь студентом (нет разрешений на управление курсами)
+	isStudent := true
+	permissions, _ := GetPermissions(r)
+	for _, p := range permissions {
+		if strings.HasPrefix(p, "course:") || strings.HasPrefix(p, "quest:") {
+			isStudent = false
+			break
+		}
+	}
+
+	var rows *sql.Rows
+	var err error
+
+	if isStudent {
+		// Студенты видят ВСЕ курсы
+		rows, err = h.DB.Query(`
+			SELECT id, name, description, teacher_id, created_at
+			FROM courses
+			ORDER BY created_at DESC
+		`)
+	} else {
+		// Преподаватели и админы — только свои или записанные
+		rows, err = h.DB.Query(`
+			SELECT c.id, c.name, c.description, c.teacher_id, c.created_at
+			FROM courses c
+			WHERE c.teacher_id = $1
+			OR EXISTS(SELECT 1 FROM user_courses uc WHERE uc.user_id = $1 AND uc.course_id = c.id)
+		`, userID)
+	}
+
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -72,19 +97,16 @@ func (h *DBHandler) GetCourse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid course ID", http.StatusBadRequest)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	var c models.Course
 	err = h.DB.QueryRow(`
 		SELECT id, name, description, teacher_id, created_at
 		FROM courses
 		WHERE id = $1
 	`, courseID).Scan(&c.ID, &c.Name, &c.Description, &c.TeacherID, &c.CreatedAt)
-
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -92,7 +114,6 @@ func (h *DBHandler) GetCourse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(c)
 }
@@ -107,18 +128,15 @@ func (h *DBHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
 	if input.Name == "" || input.Description == "" {
 		http.Error(w, "Name and description are required", http.StatusBadRequest)
 		return
 	}
-
 	userID, ok := GetUserID(r)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
-
 	now := time.Now()
 	tx, err := h.DB.Begin()
 	if err != nil {
@@ -126,7 +144,6 @@ func (h *DBHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-
 	var courseID int
 	err = tx.QueryRow(`
 		INSERT INTO courses (name, description, teacher_id, created_at)
@@ -136,7 +153,6 @@ func (h *DBHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create course", http.StatusInternalServerError)
 		return
 	}
-
 	_, err = tx.Exec(`
 		INSERT INTO user_courses (user_id, course_id, role, created_at)
 		VALUES ($1, $2, 'teacher', $3)
@@ -145,12 +161,10 @@ func (h *DBHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to assign teacher role", http.StatusInternalServerError)
 		return
 	}
-
 	if err = tx.Commit(); err != nil {
 		http.Error(w, "Transaction commit failed", http.StatusInternalServerError)
 		return
 	}
-
 	course := models.Course{
 		ID:          courseID,
 		Name:        input.Name,
@@ -158,7 +172,6 @@ func (h *DBHandler) CreateCourse(w http.ResponseWriter, r *http.Request) {
 		TeacherID:   userID,
 		CreatedAt:   now,
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(course)
@@ -172,12 +185,10 @@ func (h *DBHandler) GetCourseTests(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid course ID", http.StatusBadRequest)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	rows, err := h.DB.Query(`
 		SELECT id, name, course_id, active, created_at
 		FROM tests
@@ -188,7 +199,6 @@ func (h *DBHandler) GetCourseTests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-
 	var tests []models.Test
 	for rows.Next() {
 		var t models.Test
@@ -197,7 +207,6 @@ func (h *DBHandler) GetCourseTests(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Scan error", http.StatusInternalServerError)
 			return
 		}
-
 		// Загружаем ID вопросов
 		qRows, err := h.DB.Query("SELECT id FROM questions WHERE test_id = $1", t.ID)
 		if err != nil {
@@ -209,10 +218,8 @@ func (h *DBHandler) GetCourseTests(w http.ResponseWriter, r *http.Request) {
 			t.Questions = append(t.Questions, qid)
 		}
 		qRows.Close()
-
 		tests = append(tests, t)
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tests)
 }
@@ -225,14 +232,12 @@ func (h *DBHandler) GetTest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid test ID", http.StatusBadRequest)
 		return
 	}
-
 	var t models.Test
 	err = h.DB.QueryRow(`
 		SELECT id, name, course_id, active, created_at
 		FROM tests
 		WHERE id = $1
 	`, testID).Scan(&t.ID, &t.Name, &t.CourseID, &t.Active, &t.CreatedAt)
-
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -240,7 +245,6 @@ func (h *DBHandler) GetTest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	// Загружаем вопросы
 	qRows, err := h.DB.Query("SELECT id FROM questions WHERE test_id = $1", testID)
 	if err == nil {
@@ -251,7 +255,6 @@ func (h *DBHandler) GetTest(w http.ResponseWriter, r *http.Request) {
 		}
 		qRows.Close()
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(t)
 }
@@ -264,25 +267,21 @@ func (h *DBHandler) ActivateTest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid test ID", http.StatusBadRequest)
 		return
 	}
-
 	var courseID int
 	err = h.DB.QueryRow("SELECT course_id FROM tests WHERE id = $1", testID).Scan(&courseID)
 	if err != nil {
 		http.Error(w, "Test not found", http.StatusNotFound)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	_, err = h.DB.Exec("UPDATE tests SET active = true WHERE id = $1", testID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Test activated",
@@ -298,25 +297,21 @@ func (h *DBHandler) DeactivateTest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid test ID", http.StatusBadRequest)
 		return
 	}
-
 	var courseID int
 	err = h.DB.QueryRow("SELECT course_id FROM tests WHERE id = $1", testID).Scan(&courseID)
 	if err != nil {
 		http.Error(w, "Test not found", http.StatusNotFound)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	_, err = h.DB.Exec("UPDATE tests SET active = false WHERE id = $1", testID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Test deactivated",
@@ -336,7 +331,6 @@ func (h *DBHandler) CreateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
 	if input.Text == "" || len(input.Options) < 2 {
 		http.Error(w, "Text and at least 2 options are required", http.StatusBadRequest)
 		return
@@ -345,7 +339,6 @@ func (h *DBHandler) CreateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Correct answer index out of range", http.StatusBadRequest)
 		return
 	}
-
 	// Проверяем, что пользователь имеет доступ к курсу этого теста
 	var courseID int
 	err := h.DB.QueryRow("SELECT course_id FROM tests WHERE id = $1", input.TestID).Scan(&courseID)
@@ -353,12 +346,10 @@ func (h *DBHandler) CreateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Test not found", http.StatusNotFound)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	now := time.Now()
 	var questionID int
 	err = h.DB.QueryRow(`
@@ -369,7 +360,6 @@ func (h *DBHandler) CreateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	question := models.Question{
 		ID:            questionID,
 		TestID:        input.TestID,
@@ -378,7 +368,6 @@ func (h *DBHandler) CreateQuestion(w http.ResponseWriter, r *http.Request) {
 		CorrectAnswer: input.CorrectAnswer,
 		CreatedAt:     now,
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(question)
@@ -392,14 +381,12 @@ func (h *DBHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid question ID", http.StatusBadRequest)
 		return
 	}
-
 	var q models.Question
 	err = h.DB.QueryRow(`
 		SELECT id, test_id, text, options, correct_answer, created_at
 		FROM questions
 		WHERE id = $1
 	`, questionID).Scan(&q.ID, &q.TestID, &q.Text, pq.Array(&q.Options), &q.CorrectAnswer, &q.CreatedAt)
-
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -407,7 +394,6 @@ func (h *DBHandler) GetQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(q)
 }
@@ -420,7 +406,6 @@ func (h *DBHandler) UpdateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid question ID", http.StatusBadRequest)
 		return
 	}
-
 	var input struct {
 		Text          string   `json:"text"`
 		Options       []string `json:"options"`
@@ -430,7 +415,6 @@ func (h *DBHandler) UpdateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
 	if input.Text == "" || len(input.Options) < 2 {
 		http.Error(w, "Text and at least 2 options are required", http.StatusBadRequest)
 		return
@@ -439,7 +423,6 @@ func (h *DBHandler) UpdateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Correct answer index out of range", http.StatusBadRequest)
 		return
 	}
-
 	// Проверяем доступ через курс
 	var courseID int
 	err = h.DB.QueryRow(`
@@ -453,12 +436,10 @@ func (h *DBHandler) UpdateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Question not found", http.StatusNotFound)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	_, err = h.DB.Exec(`
 		UPDATE questions
 		SET text = $1, options = $2, correct_answer = $3, created_at = CURRENT_TIMESTAMP
@@ -468,14 +449,12 @@ func (h *DBHandler) UpdateQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	// Возвращаем обновлённый вопрос
 	var q models.Question
 	h.DB.QueryRow(`
 		SELECT id, test_id, text, options, correct_answer, created_at
 		FROM questions WHERE id = $1
 	`, questionID).Scan(&q.ID, &q.TestID, &q.Text, pq.Array(&q.Options), &q.CorrectAnswer, &q.CreatedAt)
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(q)
 }
@@ -488,7 +467,6 @@ func (h *DBHandler) DeleteQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid question ID", http.StatusBadRequest)
 		return
 	}
-
 	// Проверяем доступ
 	var courseID int
 	err = h.DB.QueryRow(`
@@ -502,18 +480,15 @@ func (h *DBHandler) DeleteQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Question not found", http.StatusNotFound)
 		return
 	}
-
 	if !CheckCourseAccess(h.DB, r, courseID) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	_, err = h.DB.Exec("DELETE FROM questions WHERE id = $1", questionID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Question deleted"})
 }
@@ -526,7 +501,6 @@ func (h *DBHandler) CreateAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid test ID", http.StatusBadRequest)
 		return
 	}
-
 	// Проверяем, что тест активен
 	var active bool
 	err = h.DB.QueryRow("SELECT active FROM tests WHERE id = $1", testID).Scan(&active)
@@ -538,13 +512,11 @@ func (h *DBHandler) CreateAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Test is not active", http.StatusBadRequest)
 		return
 	}
-
 	userID, ok := GetUserID(r)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
-
 	// Проверяем, нет ли уже активной попытки
 	var exists bool
 	h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM attempts WHERE user_id = $1 AND test_id = $2 AND finished = false)", userID, testID).Scan(&exists)
@@ -552,7 +524,6 @@ func (h *DBHandler) CreateAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "You already have an active attempt", http.StatusBadRequest)
 		return
 	}
-
 	now := time.Now()
 	var attemptID int
 	err = h.DB.QueryRow(`
@@ -563,7 +534,6 @@ func (h *DBHandler) CreateAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	attempt := models.Attempt{
 		ID:        attemptID,
 		UserID:    userID,
@@ -571,7 +541,6 @@ func (h *DBHandler) CreateAttempt(w http.ResponseWriter, r *http.Request) {
 		Finished:  false,
 		CreatedAt: now,
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(attempt)
@@ -585,13 +554,11 @@ func (h *DBHandler) GetAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid attempt ID", http.StatusBadRequest)
 		return
 	}
-
 	userID, ok := GetUserID(r)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
-
 	// Проверяем, принадлежит ли попытка пользователю или он преподаватель курса
 	var ownerID, testID, courseID int
 	err = h.DB.QueryRow(`
@@ -604,7 +571,6 @@ func (h *DBHandler) GetAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Attempt not found", http.StatusNotFound)
 		return
 	}
-
 	isOwner := (ownerID == userID)
 	isTeacher := false
 	if !isOwner {
@@ -614,7 +580,6 @@ func (h *DBHandler) GetAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-
 	var a models.Attempt
 	err = h.DB.QueryRow(`
 		SELECT id, user_id, test_id, finished, created_at
@@ -624,7 +589,6 @@ func (h *DBHandler) GetAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	// Загружаем ответы
 	rows, err := h.DB.Query("SELECT id, question_id, answer, attempt_id, created_at FROM answers WHERE attempt_id = $1", attemptID)
 	if err == nil {
@@ -635,7 +599,6 @@ func (h *DBHandler) GetAttempt(w http.ResponseWriter, r *http.Request) {
 			a.Answers = append(a.Answers, ans)
 		}
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(a)
 }
@@ -648,7 +611,6 @@ func (h *DBHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid attempt ID", http.StatusBadRequest)
 		return
 	}
-
 	var input struct {
 		QuestionID int `json:"question_id"`
 		Answer     int `json:"answer"`
@@ -657,13 +619,11 @@ func (h *DBHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
 	userID, ok := GetUserID(r)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
-
 	// Проверяем, что попытка принадлежит пользователю и не завершена
 	var dbUserID int
 	var finished bool
@@ -680,7 +640,6 @@ func (h *DBHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Attempt is already finished", http.StatusBadRequest)
 		return
 	}
-
 	// Проверяем, что вопрос существует в этом тесте
 	var testID int
 	h.DB.QueryRow("SELECT test_id FROM attempts WHERE id = $1", attemptID).Scan(&testID)
@@ -690,7 +649,6 @@ func (h *DBHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Question not found in this test", http.StatusBadRequest)
 		return
 	}
-
 	// Сохраняем ответ
 	now := time.Now()
 	var answerID int
@@ -702,7 +660,6 @@ func (h *DBHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	ans := models.Answer{
 		ID:         answerID,
 		AttemptID:  attemptID,
@@ -710,7 +667,6 @@ func (h *DBHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		Answer:     input.Answer,
 		CreatedAt:  now,
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ans)
 }
@@ -723,13 +679,11 @@ func (h *DBHandler) CompleteAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid attempt ID", http.StatusBadRequest)
 		return
 	}
-
 	userID, ok := GetUserID(r)
 	if !ok {
 		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
-
 	var dbUserID int
 	var finished bool
 	err = h.DB.QueryRow("SELECT user_id, finished FROM attempts WHERE id = $1", attemptID).Scan(&dbUserID, &finished)
@@ -745,7 +699,6 @@ func (h *DBHandler) CompleteAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Attempt is already finished", http.StatusBadRequest)
 		return
 	}
-
 	// Проверяем, ответил ли на все вопросы
 	var testID int
 	h.DB.QueryRow("SELECT test_id FROM attempts WHERE id = $1", attemptID).Scan(&testID)
@@ -755,13 +708,11 @@ func (h *DBHandler) CompleteAttempt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Not all questions answered", http.StatusBadRequest)
 		return
 	}
-
 	_, err = h.DB.Exec("UPDATE attempts SET finished = true WHERE id = $1", attemptID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Attempt completed"})
 }

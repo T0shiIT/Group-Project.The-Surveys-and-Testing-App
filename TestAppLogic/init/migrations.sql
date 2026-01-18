@@ -1,7 +1,7 @@
 -- Таблица пользователей
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    user_id_reference VARCHAR(255) UNIQUE NOT NULL,  -- Вместо email - user_id из AuthorModule
+    user_id_reference VARCHAR(255) UNIQUE NOT NULL,
     full_name VARCHAR(255),
     roles TEXT[] DEFAULT ARRAY['Student']::TEXT[],
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

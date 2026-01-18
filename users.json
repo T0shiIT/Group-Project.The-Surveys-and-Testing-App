@@ -1,0 +1,9 @@
+[
+    {
+        "email": "T0shiIT@github.com",
+        "refreshToken": "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IlQwc2hpSVRAZ2l0aHViLmNvbSIsImV4cCI6MTc2OTM1NjkzNywiaWF0IjoxNzY4NzUyMTM3LCJpc3MiOiJhdXRoX3NlcnZpY2UiLCJ1c2VyX2lkIjoiVDBzaGlJVEBnaXRodWIuY29tIiwidXNlcm5hbWUiOiJUb3NoaSJ9.kAPK-d3QWVE86T_SVPRc7VDRnc2LW9OXaDvIVn_PuXI",
+        "roles": [
+            "Teacher"
+        ]
+    }
+]

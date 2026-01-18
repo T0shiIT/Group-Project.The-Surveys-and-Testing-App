@@ -66,7 +66,6 @@ _ = Task.Run(async () =>
 //---[ИНИЦИАЛИЗАЦИЯ БОТА И REDIS]---
 var botToken = "8226200524:AAF5DzkLNIHr1wjkNhyjhjbymUN3pKHu55I"; // зафиксировано в коде
 var bot = new TelegramBotClient(botToken);
-
 var redisOptions = new ConfigurationOptions
 {
     EndPoints = { "redis:6379" },
@@ -76,10 +75,8 @@ var redisOptions = new ConfigurationOptions
     AsyncTimeout = 20000,
     ReconnectRetryPolicy = new LinearRetry(5000)
 };
-
 IConnectionMultiplexer redis = null!;
 IDatabase db = null!;
-
 try
 {
     Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ♻️ Подключаемся к Redis...");
@@ -94,7 +91,7 @@ catch (Exception ex)
 }
 
 //---[НАСТРОЙКИ CloudFlare]---
-string cloudflareUrl = "https://providing-tee-bath-evolution.trycloudflare.com"; // зафиксировано в коде
+string cloudflareUrl = "https://providing-tee-bath-evolution.trycloudflare.com";
 
 //---[ПОДГОТОВКА К РАБОТЕ]---
 await ClearOldUpdates(bot);
@@ -195,7 +192,6 @@ while (true)
 async Task HandleUnknownUser(ITelegramBotClient bot, IDatabase db, long chatId, long userId, string text, User botInfo)
 {
     string lowerText = text.ToLower();
-
     if (lowerText == "/start" || lowerText == "начать")
     {
         await db.StringSetAsync($"user:{chatId}:status", "Unknown");
@@ -208,7 +204,6 @@ async Task HandleUnknownUser(ITelegramBotClient bot, IDatabase db, long chatId, 
         return;
     }
 
-    // Обработка кнопок GitHub и Yandex
     if (text == "GitHub" || text == "Yandex")
     {
         string providerType = text.ToLower();
@@ -216,7 +211,6 @@ async Task HandleUnknownUser(ITelegramBotClient bot, IDatabase db, long chatId, 
         return;
     }
 
-    // Обработка /login?type=...
     if (lowerText.StartsWith("/login"))
     {
         string providerType = "github";
@@ -291,11 +285,20 @@ async Task HandleAuthorizedUser(ITelegramBotClient bot, IDatabase db, long chatI
     string accessToken = (await db.StringGetAsync($"user:{chatId}:access_token")).ToString() ?? "";
     string refreshToken = (await db.StringGetAsync($"user:{chatId}:refresh_token")).ToString() ?? "";
 
+    // --- [ОБРАБОТКА КОМАНД МЕНЮ] ---
     if (lowerText == "/start" || lowerText == "начать")
     {
+        string role = (await db.StringGetAsync($"user:{chatId}:role")).ToString() ?? "Student";
+        string roleDisplay = role switch
+        {
+            "Admin" => "Администратор",
+            "Teacher" => "Преподаватель",
+            "Student" => "Студент",
+            _ => "Пользователь"
+        };
         await bot.SendTextMessageAsync(
             chatId: chatId,
-            text: $"✅ Вы уже авторизованы, {userName}!\nВыберите действие из меню ниже:",
+            text: $"✅ Вы уже авторизованы, {userName}!\nВаша роль: {roleDisplay}\nВыберите действие из меню ниже:",
             replyMarkup: GetMainMenuKeyboard()
         );
         Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ✅ [{chatId}] Авторизованный пользователь запросил /start");
@@ -345,23 +348,182 @@ async Task HandleAuthorizedUser(ITelegramBotClient bot, IDatabase db, long chatI
         return;
     }
 
-    // --- [РЕАЛИЗАЦИЯ ПУНКТА 14 TASKFLOW] ---
-    // Все остальные команды отправляются в Главный модуль (TestAppLogic)
-    using var client = new HttpClient();
-    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    // --- [СОЗДАНИЕ КУРСА] ---
+    if (text == "➕ Создать курс" || lowerText == "/create_course")
+    {
+        string role = (await db.StringGetAsync($"user:{chatId}:role")).ToString() ?? "Student";
+        if (role != "Teacher" && role != "Admin")
+        {
+            await bot.SendTextMessageAsync(chatId, "❌ Только преподаватели и администраторы могут создавать курсы.");
+            return;
+        }
 
+        await db.StringSetAsync($"user:{chatId}:flow", "awaiting_course_name");
+        await bot.SendTextMessageAsync(chatId, "✏️ Введите название курса:");
+        return;
+    }
+
+    // --- [СОСТОЯНИЕ: ОЖИДАНИЕ НАЗВАНИЯ] ---
+    string flow = (await db.StringGetAsync($"user:{chatId}:flow")).ToString();
+    if (flow == "awaiting_course_name")
+    {
+        string courseName = text.Trim();
+        if (string.IsNullOrWhiteSpace(courseName))
+        {
+            await bot.SendTextMessageAsync(chatId, "❌ Название не может быть пустым. Попробуйте снова:");
+            return;
+        }
+        await db.StringSetAsync($"user:{chatId}:course_name", courseName);
+        await db.StringSetAsync($"user:{chatId}:flow", "awaiting_course_desc");
+        await bot.SendTextMessageAsync(chatId, "📝 Введите описание курса:");
+        return;
+    }
+
+    // --- [СОСТОЯНИЕ: ОЖИДАНИЕ ОПИСАНИЯ + ОТПРАВКА] ---
+    if (flow == "awaiting_course_desc")
+    {
+        string description = text.Trim();
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            await bot.SendTextMessageAsync(chatId, "❌ Описание не может быть пустым. Попробуйте снова:");
+            return;
+        }
+
+        string courseName = (await db.StringGetAsync($"user:{chatId}:course_name")).ToString();
+
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var payload = new { name = courseName, description };
+        var jsonPayload = JsonConvert.SerializeObject(payload);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+        try
+        {
+            var response = await client.PostAsync($"{cloudflareUrl}/api/courses", content);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = JsonConvert.DeserializeObject<JObject>(await response.Content.ReadAsStringAsync());
+                await bot.SendTextMessageAsync(chatId,
+                    $"✅ Курс создан!\nID: {result["id"]}\nНазвание: {result["name"]}\nОписание: {result["description"]}");
+            }
+            else if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                await bot.SendTextMessageAsync(chatId, "❌ У вас нет прав на создание курсов.");
+            }
+            else
+            {
+                await bot.SendTextMessageAsync(chatId, $"⚠️ Ошибка: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ❌ Ошибка создания курса: {ex.Message}");
+            await bot.SendTextMessageAsync(chatId, "⚠️ Не удалось создать курс.");
+        }
+
+        await db.KeyDeleteAsync($"user:{chatId}:flow");
+        await db.KeyDeleteAsync($"user:{chatId}:course_name");
+        return;
+    }
+
+    // --- [ПРОСМОТР КУРСОВ] ---
+    if (text == "📚 Доступные курсы" || lowerText == "/courses")
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        try
+        {
+            var response = await client.GetAsync($"{cloudflareUrl}/api/courses");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var courses = JsonConvert.DeserializeObject<List<JObject>>(json);
+                if (courses == null || courses.Count == 0)
+                {
+                    await bot.SendTextMessageAsync(chatId, "📭 Нет доступных курсов.");
+                }
+                else
+                {
+                    var msg = "📚 Доступные курсы:\n\n";
+                    foreach (var c in courses)
+                        msg += $"🔹 ID: {c["id"]}\n   Название: {c["name"]}\n   Описание: {c["description"]}\n\n";
+                    msg += "Чтобы открыть курс, отправьте:\n/course <ID>";
+                    await bot.SendTextMessageAsync(chatId, msg);
+                }
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await HandleTokenRefresh(bot, db, chatId, refreshToken, cloudflareUrl);
+                await bot.SendTextMessageAsync(chatId, "🔄 Токен обновлён. Повторите команду.");
+            }
+            else
+            {
+                await bot.SendTextMessageAsync(chatId, $"⚠️ Ошибка загрузки курсов: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ❌ Ошибка /courses: {ex.Message}");
+            await bot.SendTextMessageAsync(chatId, "⚠️ Не удалось получить список курсов.");
+        }
+        return;
+    }
+
+    // --- [ОТКРЫТИЕ КУРСА ПО ID] ---
+    if (lowerText.StartsWith("/course ") && int.TryParse(text.Split(' ')[1], out int courseId))
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        try
+        {
+            var response = await client.GetAsync($"{cloudflareUrl}/api/courses/{courseId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var course = JsonConvert.DeserializeObject<JObject>(await response.Content.ReadAsStringAsync());
+                await bot.SendTextMessageAsync(chatId,
+                    $"📘 Курс ID: {course["id"]}\n" +
+                    $"Название: {course["name"]}\n" +
+                    $"Описание: {course["description"]}\n" +
+                    $"Преподаватель ID: {course["teacher_id"]}");
+            }
+            else if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                await bot.SendTextMessageAsync(chatId, "❌ Курс не найден.");
+            }
+            else if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                await bot.SendTextMessageAsync(chatId, "❌ У вас нет доступа к этому курсу.");
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await HandleTokenRefresh(bot, db, chatId, refreshToken, cloudflareUrl);
+                await bot.SendTextMessageAsync(chatId, "🔄 Токен обновлён. Повторите команду.");
+            }
+            else
+            {
+                await bot.SendTextMessageAsync(chatId, $"⚠️ Ошибка: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ❌ Ошибка /course: {ex.Message}");
+            await bot.SendTextMessageAsync(chatId, "⚠️ Не удалось загрузить курс.");
+        }
+        return;
+    }
+
+    // --- [РЕАЛИЗАЦИЯ ПУНКТА 14 TASKFLOW] ---
+    using var fallbackClient = new HttpClient();
+    fallbackClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+    fallbackClient.Timeout = TimeSpan.FromSeconds(30);
     try
     {
-        // Пример: отправляем команду как JSON в TestAppLogic
         var commandJson = JsonConvert.SerializeObject(new { command = text });
         var content = new StringContent(commandJson, Encoding.UTF8, "application/json");
-        var response = await client.PostAsync($"{cloudflareUrl}/api/command", content);
-
+        var response = await fallbackClient.PostAsync($"{cloudflareUrl}/api/command", content);
         if (response.StatusCode == HttpStatusCode.OK)
         {
             var result = await response.Content.ReadAsStringAsync();
-            // Пробуем распарсить как JSON с полем "message"
             try
             {
                 var resultObj = JsonConvert.DeserializeObject<JObject>(result);
@@ -385,9 +547,7 @@ async Task HandleAuthorizedUser(ITelegramBotClient bot, IDatabase db, long chatI
         }
         else if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            // Токен недействителен на стороне сервера → обновляем
             await HandleTokenRefresh(bot, db, chatId, refreshToken, cloudflareUrl);
-            // После обновления можно повторить запрос (опционально)
             await bot.SendTextMessageAsync(chatId, "🔄 Токен обновлён. Повторите команду.");
         }
         else
@@ -400,19 +560,14 @@ async Task HandleAuthorizedUser(ITelegramBotClient bot, IDatabase db, long chatI
         Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ❌ Ошибка при вызове TestAppLogic: {ex.Message}");
         await bot.SendTextMessageAsync(chatId, "⚠️ Ошибка при выполнении команды. Попробуйте позже.");
     }
-    // --- [КОНЕЦ ПУНКТА 14] ---
 }
 
 //---[ОСТАЛЬНЫЕ МЕТОДЫ]---
-// (StartLoginProcess, CheckAuthorizationForAnonymousUsers, PerformLocalLogout, PerformGlobalLogout,
-// HandleTokenRefresh, ValidateAccessToken, GetAuthChoiceKeyboard, GetMainMenuKeyboard, ClearOldUpdates)
-
 async Task StartLoginProcess(ITelegramBotClient bot, IDatabase db, long chatId, long userId, string providerType, string cloudflareUrl)
 {
     string loginToken = Guid.NewGuid().ToString();
     await db.StringSetAsync($"user:{chatId}:status", "Anonymous");
     await db.StringSetAsync($"user:{chatId}:login_token", loginToken);
-
     using var httpClient = new HttpClient();
     httpClient.Timeout = TimeSpan.FromSeconds(30);
     try
@@ -425,7 +580,6 @@ async Task StartLoginProcess(ITelegramBotClient bot, IDatabase db, long chatId, 
             string authUrl = jsonData["url"];
             string providerName = providerType == "github" ? "GitHub" : "Yandex";
             string providerIcon = providerType == "github" ? "🐱" : "🔵";
-
             await bot.SendTextMessageAsync(
                 chatId: chatId,
                 text: $"{providerIcon} Для продолжения пройдите авторизацию через {providerName}:\n{authUrl}\n⚠️ После авторизации закройте окно браузера",
@@ -469,14 +623,12 @@ async Task CheckAuthorizationForAnonymousUsers(ITelegramBotClient bot, IDatabase
             if (status != "Anonymous") continue;
             string loginToken = (await db.StringGetAsync($"user:{chatId}:login_token")).ToString() ?? "";
             if (string.IsNullOrEmpty(loginToken)) continue;
-
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(30);
             try
             {
                 var response = await client.GetAsync($"{cloudflareUrl}/auth/check_state?state={loginToken}");
                 if (response.StatusCode == HttpStatusCode.Accepted) continue;
-
                 string responseContent = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
                 {
@@ -485,25 +637,33 @@ async Task CheckAuthorizationForAnonymousUsers(ITelegramBotClient bot, IDatabase
                     Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 🔄 [{chatId}] Анонимный пользователь переведен в статус Unknown (токен недействителен)");
                     continue;
                 }
-
                 var tokens = JsonConvert.DeserializeObject<JObject>(responseContent);
                 string accessToken = tokens["access_token"]?.ToString() ?? "";
                 string refreshToken = tokens["refresh_token"]?.ToString() ?? "";
                 string email = tokens["email"]?.ToString() ?? "";
                 string userName = email.Split('@')[0];
+                string role = tokens["role"]?.ToString() ?? "Student";
 
                 await db.StringSetAsync($"user:{chatId}:status", "Authorized");
                 await db.StringSetAsync($"user:{chatId}:access_token", accessToken);
                 await db.StringSetAsync($"user:{chatId}:refresh_token", refreshToken);
                 await db.StringSetAsync($"user:{chatId}:name", userName);
+                await db.StringSetAsync($"user:{chatId}:role", role);
                 await db.KeyDeleteAsync($"user:{chatId}:login_token");
 
+                string roleDisplay = role switch
+                {
+                    "Admin" => "Администратор",
+                    "Teacher" => "Преподаватель",
+                    "Student" => "Студент",
+                    _ => "Пользователь"
+                };
                 await bot.SendTextMessageAsync(
                     chatId: chatId,
-                    text: $"🎉 Поздравляем, {userName}!\n✅ Авторизация прошла успешно!\nТеперь вы можете использовать все функции бота.",
+                    text: $"🎉 Поздравляем, {userName}!\n✅ Авторизация прошла успешно!\nВаша роль: {roleDisplay}\nТеперь вы можете использовать все функции бота.",
                     replyMarkup: GetMainMenuKeyboard()
                 );
-                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ✅ [{chatId}] Успешная авторизация для пользователя {userName}");
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ✅ [{chatId}] Успешная авторизация для пользователя {userName} (роль: {role})");
             }
             catch (Exception ex)
             {
@@ -532,7 +692,6 @@ async Task CheckNotificationsForAuthorizedUsers(ITelegramBotClient bot, IDatabas
             if (status != "Authorized") continue;
             string accessToken = (await db.StringGetAsync($"user:{chatId}:access_token")).ToString() ?? "";
             if (string.IsNullOrEmpty(accessToken)) continue;
-
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(30);
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -571,6 +730,7 @@ async Task PerformLocalLogout(ITelegramBotClient bot, IDatabase db, long chatId)
     await db.KeyDeleteAsync($"user:{chatId}:access_token");
     await db.KeyDeleteAsync($"user:{chatId}:refresh_token");
     await db.KeyDeleteAsync($"user:{chatId}:name");
+    await db.KeyDeleteAsync($"user:{chatId}:role");
     await db.KeyDeleteAsync($"user:{chatId}:login_token");
     await bot.SendTextMessageAsync(
         chatId: chatId,
@@ -625,8 +785,10 @@ async Task HandleTokenRefresh(ITelegramBotClient bot, IDatabase db, long chatId,
             var tokens = JsonConvert.DeserializeObject<JObject>(await response.Content.ReadAsStringAsync());
             string newAccessToken = tokens["access_token"]?.ToString() ?? "";
             string newRefreshToken = tokens["refresh_token"]?.ToString() ?? "";
+            string newRole = tokens["role"]?.ToString() ?? "Student";
             await db.StringSetAsync($"user:{chatId}:access_token", newAccessToken);
             await db.StringSetAsync($"user:{chatId}:refresh_token", newRefreshToken);
+            await db.StringSetAsync($"user:{chatId}:role", newRole);
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 🔄 [{chatId}] Токен успешно обновлен");
         }
         else
@@ -671,8 +833,8 @@ async Task<bool> ValidateAccessToken(ITelegramBotClient bot, IDatabase db, long 
                         Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ⚠️ [{chatId}] Токен истек");
                         return false;
                     }
-                    return true;
                 }
+                return true;
             }
             catch
             {
@@ -715,6 +877,8 @@ ReplyKeyboardMarkup GetAuthChoiceKeyboard() => new(new[]
 
 ReplyKeyboardMarkup GetMainMenuKeyboard() => new(new[]
 {
+    new KeyboardButton("📚 Доступные курсы"),
+    new KeyboardButton("➕ Создать курс"),
     new KeyboardButton("Помощь"),
     new KeyboardButton("Выйти")
 })
