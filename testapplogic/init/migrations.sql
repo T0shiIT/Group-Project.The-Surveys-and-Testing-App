@@ -1,7 +1,7 @@
 -- Таблица пользователей
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
+    user_id_reference VARCHAR(255) UNIQUE NOT NULL,  -- Вместо email - user_id из AuthorModule
     full_name VARCHAR(255),
     roles TEXT[] DEFAULT ARRAY['Student']::TEXT[],
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -61,3 +61,15 @@ CREATE TABLE answers (
     answer INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Индексы для оптимизации запросов
+CREATE INDEX idx_users_user_id_reference ON users(user_id_reference);
+CREATE INDEX idx_courses_teacher_id ON courses(teacher_id);
+CREATE INDEX idx_user_courses_user_id ON user_courses(user_id);
+CREATE INDEX idx_user_courses_course_id ON user_courses(course_id);
+CREATE INDEX idx_tests_course_id ON tests(course_id);
+CREATE INDEX idx_questions_test_id ON questions(test_id);
+CREATE INDEX idx_attempts_user_id ON attempts(user_id);
+CREATE INDEX idx_attempts_test_id ON attempts(test_id);
+CREATE INDEX idx_answers_attempt_id ON answers(attempt_id);
+CREATE INDEX idx_answers_question_id ON answers(question_id);
