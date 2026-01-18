@@ -1,0 +1,5 @@
+# PostgreSQL data
+pgdata/
+pg_data/
+data/
+*.pid

@@ -1,0 +1,73 @@
+services:
+  bot:
+    build: ./TelegramBot
+    expose:
+      - "5000"
+    depends_on:
+      - redis
+      - auth
+    environment:
+      - BOT_TOKEN=8226200524:AAF5DzkLNIHr1wjkNhyjhjbymUN3pKHu55I
+      - CLOUDFLARE_URL=https://meaning-remain-creative-seriously.trycloudflare.com
+    restart: unless-stopped
+  
+  auth:
+    build: ./AuthorModule
+    expose:
+      - "8081"
+    environment:
+      - GH_ID=Ov23lizovwQc16hqkwGz
+      - GH_SECRET=225c16a3c30146564077d3d08d910812210558ef
+      - YAN_ID=02a1500029c8496187c5ef080e4acdfd
+      - YAN_SECRET=d7e57164251e46baada1155606f6cdb1
+    restart: unless-stopped
+  
+  testapp:
+    build: ./TestAppLogic
+    expose:
+      - "8080"
+    depends_on:
+      - db
+      - auth
+    environment:
+      - DB_HOST=db
+      - DB_USER=postgres
+      - DB_PASSWORD=1234
+      - DB_NAME=testdb
+      - JWT_SECRET=super_secret_key_123
+    restart: unless-stopped
+  
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=testdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./TestAppLogic/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+  
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+  
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - bot
+      - auth
+      - testapp
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+networks:
+  default:
+    name: stellvia-network
+    driver: bridge

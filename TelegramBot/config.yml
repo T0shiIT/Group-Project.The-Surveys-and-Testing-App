@@ -1,0 +1,6 @@
+tunnel: homework-tunnel
+credentials-file: ./cloudflare-tunnel.json
+
+ingress:
+  - hostname: "*"  # Явное указание "все домены"
+    service: http://localhost:80
