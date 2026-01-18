@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/lib/pq"
 )
 
 var jwtSecret []byte
@@ -18,7 +19,7 @@ func InitAuth(secret string) {
 	jwtSecret = []byte(secret)
 }
 
-// AuthMiddleware проверяет JWT-токен и кладёт user_id в контекст запроса
+// AuthMiddleware проверяет JWT-токен и кладёт user_id и user_id_reference в контекст запроса
 func AuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,11 +48,17 @@ func AuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Получаем user_id из токена (вместо email)
-			user_id, ok := claims["user_id"].(string)
+			// Получаем user_id из токена (это email, строка)
+			userIDRef, ok := claims["user_id"].(string)
 			if !ok {
 				http.Error(w, "User ID not found in token", http.StatusUnauthorized)
 				return
+			}
+
+			// Получаем username для создания пользователя
+			username, _ := claims["username"].(string)
+			if username == "" {
+				username = userIDRef
 			}
 
 			// Получаем разрешения из токена
@@ -69,22 +76,29 @@ func AuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				}
 			}
 
-			// Ищем пользователя по user_id_reference (место email)
+			// Ищем или создаём пользователя по user_id_reference
 			var userID int
-			err = db.QueryRow("SELECT id FROM users WHERE user_id_reference = $1", user_id).Scan(&userID)
-			if err != nil {
-				if err == sql.ErrNoRows {
-					http.Error(w, "User not found", http.StatusUnauthorized)
-				} else {
-					http.Error(w, "Database error", http.StatusInternalServerError)
+			err = db.QueryRow("SELECT id FROM users WHERE user_id_reference = $1", userIDRef).Scan(&userID)
+			if err == sql.ErrNoRows {
+				// Создаём нового пользователя
+				err = db.QueryRow(`
+					INSERT INTO users (user_id_reference, full_name, roles, created_at)
+					VALUES ($1, $2, $3, $4)
+					RETURNING id
+				`, userIDRef, username, pq.Array([]string{"Student"}), time.Now()).Scan(&userID)
+				if err != nil {
+					http.Error(w, "Failed to create user in database", http.StatusInternalServerError)
+					return
 				}
+			} else if err != nil {
+				http.Error(w, "Database error during user lookup", http.StatusInternalServerError)
 				return
 			}
 
 			// Кладем данные в контекст запроса
-			ctx := context.WithValue(r.Context(), "user_id", userID)
+			ctx := context.WithValue(r.Context(), "user_id", userID) // целое число для SQL
 			ctx = context.WithValue(ctx, "permissions", permissionStrings)
-			ctx = context.WithValue(ctx, "user_id_reference", user_id)
+			ctx = context.WithValue(ctx, "user_id_reference", userIDRef) // строка для логов
 
 			// Логируем запрос с информацией о пользователе
 			LogRequestWithUser(r.WithContext(ctx), "AuthMiddleware")
@@ -94,7 +108,7 @@ func AuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 	}
 }
 
-// GetUserID извлекает user_id из контекста запроса
+// GetUserID извлекает user_id (целое число) из контекста запроса
 func GetUserID(r *http.Request) (int, bool) {
 	userID, ok := r.Context().Value("user_id").(int)
 	return userID, ok
@@ -189,7 +203,6 @@ func LogRequestWithUser(r *http.Request, handlerName string) {
 	permissions, _ := GetPermissions(r)
 	userIDRef, _ := r.Context().Value("user_id_reference").(string)
 
-	// Используем переменную для логирования
 	logMessage := map[string]interface{}{
 		"timestamp":   time.Now().Format(time.RFC3339),
 		"handler":     handlerName,
@@ -200,6 +213,5 @@ func LogRequestWithUser(r *http.Request, handlerName string) {
 		"path":        r.URL.Path,
 	}
 
-	// Раскомментировано логирование
 	log.Printf("Request: %+v", logMessage)
 }
