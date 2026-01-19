@@ -29,7 +29,7 @@ string GetCloudflareUrl() {
     if (url && strlen(url) > 0) {
         return url;
     }
-    return "https://providing-tee-bath-evolution.trycloudflare.com";
+    return "https://guide-retailer-interpreted-paragraphs.trycloudflare.com";
 }
 
 // Проверка refresh токена

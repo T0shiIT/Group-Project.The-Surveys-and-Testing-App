@@ -31,7 +31,7 @@ RUN dotnet restore --verbosity minimal --disable-parallel --ignore-failed-source
 COPY . .
 
 # Публикация приложения
-RUN dotnet publish -c Release -o /app --no-restore
+RUN dotnet publish -c Release -o /app
 
 #---[ЭТАП ЗАПУСКА]---
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

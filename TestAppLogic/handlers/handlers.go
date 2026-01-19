@@ -389,9 +389,9 @@ func (h *DBHandler) CreateQuestion(w http.ResponseWriter, r *http.Request) {
 	err = h.DB.QueryRow(`
 		INSERT INTO questions (test_id, text, options, correct_answer, created_at)
 		VALUES ($1, $2, $3, $4, $5) RETURNING id
-	`, input.TestID, input.Text, input.Options, input.CorrectAnswer, now).Scan(&questionID)
+	`, input.TestID, input.Text, pq.Array(input.Options), input.CorrectAnswer, now).Scan(&questionID)
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	question := models.Question{
